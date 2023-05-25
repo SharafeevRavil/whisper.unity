@@ -2,6 +2,7 @@ using System.Diagnostics;
 using UnityEngine;
 using UnityEngine.UI;
 using Whisper.Utils;
+using Debug = UnityEngine.Debug;
 
 namespace Whisper.Samples
 {
@@ -24,6 +25,7 @@ namespace Whisper.Samples
 
         private void Awake()
         {
+            Debug.Log("Awake");
             button.onClick.AddListener(OnButtonPressed);
 
             languageDropdown.value = languageDropdown.options
@@ -41,6 +43,7 @@ namespace Whisper.Samples
 
         private void OnButtonPressed()
         {
+            Debug.Log("Button");
             if (!microphoneRecord.IsRecording)
                 microphoneRecord.StartRecord();
             else
@@ -68,7 +71,9 @@ namespace Whisper.Samples
             var sw = new Stopwatch();
             sw.Start();
             
+            Debug.Log($"Before transcribing");
             var res = await whisper.GetTextAsync(data, frequency, channels);
+            Debug.Log($"Transcribed: {res.Result}. Lang: {res.Language}");
 
             var time = sw.ElapsedMilliseconds;
             var rate = length / (time * 0.001f);

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using JetBrains.Annotations;
 using UnityEngine;
@@ -50,10 +51,20 @@ namespace Whisper.Utils
                     .FindIndex(op => op.text == microphoneDefaultLabel);
                 microphoneDropdown.onValueChanged.AddListener(OnMicrophoneChanged);
             }
+/*#if UNITY_WEBGL && !UNITY_EDITOR
+            Microphone.Init();
+            Microphone.QueryAudioInput();
+#endif*/
         }
 
+
+        
         private void Update()
         {
+/*#if UNITY_WEBGL && !UNITY_EDITOR
+            Microphone.Update();
+#endif*/
+            Debug.Log(Microphone.devices);
             if (!IsRecording)
                 return;
 
@@ -71,6 +82,7 @@ namespace Whisper.Utils
 
         public void StartRecord()
         {
+//#if !UNITY_WEBGL
             if (IsRecording)
                 return;
 
@@ -78,10 +90,12 @@ namespace Whisper.Utils
             RecordStartMicDevice = SelectedMicDevice;
             _clip = Microphone.Start(RecordStartMicDevice, false, maxLengthSec, frequency);
             IsRecording = true;
+//#endif
         }
 
         public void StopRecord()
         {
+//#if !UNITY_WEBGL
             if (!IsRecording)
                 return;
 
@@ -97,8 +111,12 @@ namespace Whisper.Utils
             Microphone.End(RecordStartMicDevice);
             IsRecording = false;
             _length = Time.realtimeSinceStartup - _recordStart;
-
+            Debug.Log($"Data array: {data.Length}:");
+            var dataStr = data.Take(100).Select(x => x.ToString(CultureInfo.InvariantCulture)).Aggregate((a,b) => $"{a}, {b}");
+            Debug.Log($"{dataStr}\n");
+            Debug.Log($"freq={_clip.frequency}, channels={_clip.channels}, length={_length}");
             OnRecordStop?.Invoke(data, _clip.frequency, _clip.channels, _length);
+//#endif
         }
         
         public delegate void OnRecordStopDelegate(float[] data, int frequency, int channels, float length);
@@ -106,6 +124,7 @@ namespace Whisper.Utils
 
         private float[] GetTrimmedData()
         {
+//#if !UNITY_WEBGL
             // get microphone samples and current position
             var pos = Microphone.GetPosition(RecordStartMicDevice);
             var origData = new float[_clip.samples * _clip.channels];
@@ -119,6 +138,9 @@ namespace Whisper.Utils
             var trimData = new float[pos];
             Array.Copy(origData, trimData, pos);
             return trimData;
+//#else
+//            return Array.Empty<float>();
+//#endif
         }
     }
 }

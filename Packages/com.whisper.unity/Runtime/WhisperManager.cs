@@ -91,7 +91,9 @@ namespace Whisper
             try
             {
                 var path = Path.Combine(Application.streamingAssetsPath, modelPath);
+                Debug.Log("InitFromFileAsync");
                 _whisper = await WhisperWrapper.InitFromFileAsync(path);
+                Debug.Log("GetDefaultParams");
                 _params = WhisperParams.GetDefaultParams(strategy);
                 _whisper.OnNewSegment += OnNewSegmentHandler;
             }
@@ -133,12 +135,17 @@ namespace Whisper
         /// </summary>
         public async Task<WhisperResult> GetTextAsync(float[] samples, int frequency, int channels)
         {
+            Debug.Log("CheckIfLoaded");
             var isLoaded = await CheckIfLoaded();
+            Debug.Log($"CheckIfLoaded {isLoaded}");
             if (!isLoaded)
                 return null;
 
+            Debug.Log("UpdateParams");
             UpdateParams();
+            Debug.Log("_whisper.GetTextAsync");
             var res = await _whisper.GetTextAsync(samples, frequency, channels, _params);
+            Debug.Log($"_whisper.GetTextAsync {res}");
             return res;
         }
 
@@ -165,8 +172,10 @@ namespace Whisper
             // wait while model still loading
             while (IsLoading)
             {
+                Debug.Log($"Loading {IsLoading}. Loaded {IsLoaded}");
                 await Task.Yield();
             }
+            Debug.Log($"Its loaded perhaps. Loading {IsLoading}. Loaded {IsLoaded}");
 
             return IsLoaded;
         }

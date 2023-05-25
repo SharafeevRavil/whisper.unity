@@ -1,8 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Runtime.InteropServices;
+using System.Runtime.Serialization.Formatters.Binary;
 using System.Threading.Tasks;
 using AOT;
 using UnityEngine;
@@ -54,17 +57,40 @@ namespace Whisper
         public async Task<WhisperResult> GetTextAsync(AudioClip clip, WhisperParams param)
         {
             var samples = new float[clip.samples * clip.channels];
+            Debug.Log($"Samples length 1: {samples.Length}");
+#if !UNITY_EDITOR && UNITY_WEBGL
+#else
             if (!clip.GetData(samples, 0))
             {
                 Debug.LogError("Failed to load audio!");
                 return null;
             }
-
+            //var json = JsonUtility.ToJson(samples);
+            //await File.WriteAllTextAsync(Path.Combine(Application.streamingAssetsPath, "Whisper/samples.json"), json);
+            
+            var fw = File.Create(Path.Combine(Application.streamingAssetsPath, "Whisper/samples.float[]"));
+            var bf = new BinaryFormatter();
+            bf.Serialize(fw, samples);
+            fw.Close();
+#endif
+            //var json2 = await File.ReadAllTextAsync(Path.Combine(Application.streamingAssetsPath, "Whisper/samples.json"));
+            //samples = JsonUtility.FromJson<float[]>(json2);
+            var file = await FileUtils.ReadFileAsync(Path.Combine(Application.streamingAssetsPath, "Whisper/samples.float[]"));
+            var bf2 = new BinaryFormatter();
+            samples = (float[])bf2.Deserialize(new MemoryStream(file));
+            Debug.Log($"Samples length 2: {samples.Length}");
+            
             var frequency = clip.frequency;
             var channels = clip.channels;
+            Debug.Log($"Frequency: {frequency}");
+            Debug.Log($"Channels: {channels}");
+            
+#if !UNITY_EDITOR && UNITY_WEBGL
+            return GetText(samples, frequency, channels, param);
+#else
             var asyncTask = Task.Factory.StartNew(() => GetText(samples, frequency, channels, param));
             return await asyncTask;
-            
+#endif       
         }
 
         public WhisperResult GetText(float[] samples, int frequency, int channels, WhisperParams param)
@@ -76,9 +102,11 @@ namespace Whisper
                 var sw = new Stopwatch();
                 sw.Start();
             
+                Debug.Log($"Samples count: {samples.Length}");
                 var readySamples = AudioUtils.Preprocess(samples,frequency, channels, WhisperSampleRate);
             
                 Debug.Log($"Audio data is preprocessed, total time: {sw.ElapsedMilliseconds} ms.");
+                Debug.Log($"{readySamples.Length}: {readySamples.Take(10).Select(x => x.ToString(CultureInfo.InvariantCulture)).Aggregate((a, b) => $"{a}, {b}")}");
 
                 var userData = new WhisperUserData(this, param);
                 var gch = GCHandle.Alloc(userData);
@@ -118,8 +146,12 @@ namespace Whisper
 
         public async Task<WhisperResult> GetTextAsync(float[] samples, int frequency, int channels, WhisperParams param)
         {
+#if UNITY_WEBGL && !UNITY_EDITOR
+            return GetText(samples, frequency, channels, param);
+#else
             var asyncTask = Task.Factory.StartNew(() => GetText(samples, frequency, channels, param));
             return await asyncTask;
+#endif
         }
 
         private unsafe bool InferenceWhisper(float[] samples, WhisperNativeParams param)
@@ -130,6 +162,7 @@ namespace Whisper
             sw.Start();
             fixed (float* samplesPtr = samples)
             {
+                Debug.Log($"var code = WhisperNative.whisper_full(_whisperCtx, param, samplesPtr, samples.Length);");
                 var code = WhisperNative.whisper_full(_whisperCtx, param, samplesPtr, samples.Length);
                 if (code != 0)
                 {
@@ -193,9 +226,15 @@ namespace Whisper
         
         public static async Task<WhisperWrapper> InitFromFileAsync(string modelPath)
         {
-#if UNITY_ANDROID && !UNITY_EDITOR
+#if (UNITY_ANDROID || UNITY_WEBGL) && !UNITY_EDITOR
+            Debug.Log("var buffer = await FileUtils.ReadFileAsync(modelPath);");
             var buffer = await FileUtils.ReadFileAsync(modelPath);
+            Debug.Log($"{buffer != null}");
+            Debug.Log($"{buffer!.Length}");
+            Debug.Log($"{buffer!.Take(10).Select(x => x.ToString()).Aggregate((a, b) => $"{a}, {b}")}");
+            Debug.Log("await InitFromBufferAsync(buffer);");
             var res = await InitFromBufferAsync(buffer);
+            Debug.Log($"res {res}");
             return res;
 #else
             var asyncTask = Task.Factory.StartNew(() => InitFromFile(modelPath));
@@ -205,7 +244,8 @@ namespace Whisper
         
         public static WhisperWrapper InitFromFile(string modelPath)
         {
-#if UNITY_ANDROID && !UNITY_EDITOR
+            Debug.Log("Wtf is happening here in WEBGL");
+#if (UNITY_ANDROID || UNITY_WEBGL) && !UNITY_EDITOR
             var buffer = FileUtils.ReadFile(modelPath);
             var res = InitFromBuffer(buffer);
             return res;
@@ -280,8 +320,15 @@ namespace Whisper
         
         public static async Task<WhisperWrapper> InitFromBufferAsync(byte[] buffer)
         {
+            Debug.Log($"public static async Task<WhisperWrapper> InitFromBufferAsync(byte[] buffer)");
+#if UNITY_WEBGL && !UNITY_EDITOR
+            var result = InitFromBuffer(buffer);
+            Debug.Log($"Result = {result}");
+            return result;
+#else
             var asyncTask = Task.Factory.StartNew(() => InitFromBuffer(buffer));
             return await asyncTask;
+#endif
         }
         
         private struct WhisperUserData

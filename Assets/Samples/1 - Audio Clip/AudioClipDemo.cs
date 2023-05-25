@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Text;
 using UnityEngine;
 using UnityEngine.UI;
+using Debug = UnityEngine.Debug;
 
 namespace Whisper.Samples
 {
@@ -39,6 +40,7 @@ namespace Whisper.Samples
 
         public async void ButtonPressed()
         {
+            Debug.Log("Button pressed");
             _buffer = "";
             if (echoSound)
                 AudioSource.PlayClipAtPoint(clip, Vector3.zero);
